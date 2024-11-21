@@ -5,10 +5,12 @@ namespace MeddraService;
 public class MeddraApi
 {
     public List<MeddraRecord> _meddraRecords;
+    public List<LltRecord> _lltRecords;
 
-    public MeddraApi(string filePath)
+    public MeddraApi(string filePath, string lltFilePath)
     {
         _meddraRecords = LoadMeddraFile(filePath);
+        _lltRecords = LoadLltFile(lltFilePath);
     }
 
     public class MeddraRecord
@@ -25,6 +27,14 @@ public class MeddraApi
         public string? NullField { get; set; }
         public long? PtSocCode { get; set; }
         public bool PrimarySocFlag { get; set; }
+    }
+
+    public class LltRecord
+    {
+        public long LltCode { get; set; }
+        public string? LltName { get; set; }
+        public long PtCode { get; set; }
+        public bool IsCurrent { get; set; }
     }
 
     public List<MeddraRecord> LoadMeddraFile(string filePath)
@@ -53,6 +63,31 @@ public class MeddraApi
                 NullField = fields[9],
                 PtSocCode = string.IsNullOrEmpty(fields[10]) ? null : long.Parse(fields[10]),
                 PrimarySocFlag = fields[11] == "Y"
+            };
+            records.Add(record);
+        }
+
+        return records;
+    }
+
+    private List<LltRecord> LoadLltFile(string filePath)
+    {
+        var records = new List<LltRecord>();
+
+        foreach (string line in File.ReadLines(filePath))
+        {
+            var fields = line.Split('$');
+            if (fields.Length < 11) continue;
+
+            // Remove quotes if present in LLT name
+            string lltName = fields[1].Trim('"');
+
+            var record = new LltRecord
+            {
+                LltCode = long.Parse(fields[0]),
+                LltName = lltName,
+                PtCode = long.Parse(fields[2]),
+                IsCurrent = fields[9] == "Y"
             };
             records.Add(record);
         }
@@ -136,4 +171,119 @@ public class MeddraApi
 
         return result;
     }
+
+    public MeddraItems SearchTerm(string searchText, string termLevel)
+    {
+        var result = new MeddraItems
+        {
+            SocValues = [],
+            HlgtValues = [],
+            HltValues = [],
+            PtValues = [],
+            LltValues = []
+        };
+
+        if (string.IsNullOrWhiteSpace(searchText))
+        {
+            return result;
+        }
+
+        // Normalize search text to lowercase for case-insensitive partial matching
+        string normalizedSearchText = searchText.ToLower();
+
+        int pathId = 1;
+        switch (termLevel.ToUpper())
+        {
+            case "SOC":
+                var socRecords = _meddraRecords
+                    .Where(r => r.SocName != null && r.SocName.ToLower().StartsWith(normalizedSearchText))
+                    .DistinctBy(r => r.SocCode);
+
+                foreach (var record in socRecords)
+                {
+                    result.SocValues.Add(new MeddraLevelModel
+                    {
+                        Name = record.SocName,
+                        Code = record.SocCode.ToString(),
+                        IsPrimaryPath = record.PrimarySocFlag,
+                        PathId = pathId++
+                    });
+                }
+                break;
+
+            case "HLGT":
+                var hlgtRecords = _meddraRecords
+                    .Where(r => r.HlgtName != null && r.HlgtName.ToLower().StartsWith(normalizedSearchText))
+                    .DistinctBy(r => r.HlgtCode);
+
+                foreach (var record in hlgtRecords)
+                {
+                    result.HlgtValues.Add(new MeddraLevelModel
+                    {
+                        Name = record.HlgtName,
+                        Code = record.HlgtCode.ToString(),
+                        IsPrimaryPath = record.PrimarySocFlag,
+                        PathId = pathId++
+                    });
+                }
+                break;
+
+            case "HLT":
+                var hltRecords = _meddraRecords
+                    .Where(r => r.HltName != null && r.HltName.ToLower().StartsWith(normalizedSearchText))
+                    .DistinctBy(r => r.HltCode);
+
+                foreach (var record in hltRecords)
+                {
+                    result.HltValues.Add(new MeddraLevelModel
+                    {
+                        Name = record.HltName,
+                        Code = record.HltCode.ToString(),
+                        IsPrimaryPath = record.PrimarySocFlag,
+                        PathId = pathId++
+                    });
+                }
+                break;
+
+            case "PT":
+                var ptRecords = _meddraRecords
+                    .Where(r => r.PtName != null && r.PtName.ToLower().StartsWith(normalizedSearchText))
+                    .DistinctBy(r => r.PtCode);
+
+                foreach (var record in ptRecords)
+                {
+                    result.PtValues.Add(new MeddraLevelModel
+                    {
+                        Name = record.PtName,
+                        Code = record.PtCode.ToString(),
+                        IsPrimaryPath = record.PrimarySocFlag,
+                        PathId = pathId++
+                    });
+                }
+                break;
+
+            case "LLT":
+                var lltRecords = _lltRecords
+                    .Where(r => r.LltName != null && r.LltName.ToLower().StartsWith(normalizedSearchText))
+                    .DistinctBy(r => r.LltCode);
+
+                foreach (var record in lltRecords)
+                {
+                    result.LltValues.Add(new MeddraLevelModel
+                    {
+                        Name = record.LltName,
+                        Code = record.LltCode.ToString(),
+                        IsPrimaryPath = false,
+                        PathId = pathId++
+                    });
+                }
+                break;
+
+            default:
+                throw new ArgumentException("Invalid term level. Must be SOC, HLGT, HLT, PT, or LLT.");
+        }
+
+        return result;
+    }
+
 }
