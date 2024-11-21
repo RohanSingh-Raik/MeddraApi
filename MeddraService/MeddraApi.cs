@@ -103,8 +103,95 @@ public class MeddraApi
             HlgtValues = [],
             HltValues = [],
             PtValues = [],
-            LltValues = [] // Note: LLT data not present in current schema
+            LltValues = []
         };
+
+        // Handle LLT search separately
+        if (termType.ToUpper() == "LLT")
+        {
+            // Find the LLT record
+            var lltRecord = _lltRecords
+                .FirstOrDefault(l => l.LltName != null &&
+                    l.LltName.Equals(termName, StringComparison.OrdinalIgnoreCase) &&
+                    l.IsCurrent);
+
+            if (lltRecord == null)
+            {
+                return result;
+            }
+
+            // Find all MedDRA records with the same PT code
+            var ptRecords = _meddraRecords
+                .Where(r => r.PtCode == lltRecord.PtCode);
+
+            int pathId1 = 1;
+            foreach (var ptRecord in ptRecords)
+            {
+                // Add LLT Values
+                if (!result.LltValues.Any(l => l.Code == lltRecord.LltCode.ToString()))
+                {
+                    result.LltValues.Add(new MeddraLevelModel
+                    {
+                        Name = lltRecord.LltName,
+                        Code = lltRecord.LltCode.ToString(),
+                        IsPrimaryPath = false,
+                        PathId = pathId1
+                    });
+                }
+
+                // Add PT Values
+                if (!result.PtValues.Any(p => p.Code == ptRecord.PtCode.ToString()))
+                {
+                    result.PtValues.Add(new MeddraLevelModel
+                    {
+                        Name = ptRecord.PtName,
+                        Code = ptRecord.PtCode.ToString(),
+                        IsPrimaryPath = ptRecord.PrimarySocFlag,
+                        PathId = pathId1
+                    });
+                }
+
+                // Add HLT Values
+                if (!result.HltValues.Any(h => h.Code == ptRecord.HltCode.ToString()))
+                {
+                    result.HltValues.Add(new MeddraLevelModel
+                    {
+                        Name = ptRecord.HltName,
+                        Code = ptRecord.HltCode.ToString(),
+                        IsPrimaryPath = ptRecord.PrimarySocFlag,
+                        PathId = pathId1
+                    });
+                }
+
+                // Add HLGT Values
+                if (!result.HlgtValues.Any(h => h.Code == ptRecord.HlgtCode.ToString()))
+                {
+                    result.HlgtValues.Add(new MeddraLevelModel
+                    {
+                        Name = ptRecord.HlgtName,
+                        Code = ptRecord.HlgtCode.ToString(),
+                        IsPrimaryPath = ptRecord.PrimarySocFlag,
+                        PathId = pathId1
+                    });
+                }
+
+                // Add SOC Values
+                if (!result.SocValues.Any(s => s.Code == ptRecord.SocCode.ToString()))
+                {
+                    result.SocValues.Add(new MeddraLevelModel
+                    {
+                        Name = ptRecord.SocName,
+                        Code = ptRecord.SocCode.ToString(),
+                        IsPrimaryPath = ptRecord.PrimarySocFlag,
+                        PathId = pathId1
+                    });
+                }
+
+                pathId1++;
+            }
+
+            return result;
+        }
 
         var matchingRecords = termType.ToUpper() switch
         {
@@ -164,6 +251,28 @@ public class MeddraApi
                     IsPrimaryPath = record.PrimarySocFlag,
                     PathId = pathId
                 });
+            }
+
+            // Add LLT level only when term type is PT
+            if (termType.ToUpper() == "PT")
+            {
+                var lltRecordsForPt = _lltRecords
+                    .Where(l => l.PtCode == record.PtCode && l.IsCurrent)
+                    .DistinctBy(l => l.LltCode);
+
+                foreach (var lltRecord in lltRecordsForPt)
+                {
+                    if (!result.LltValues.Any(l => l.Code == lltRecord.LltCode.ToString()))
+                    {
+                        result.LltValues.Add(new MeddraLevelModel
+                        {
+                            Name = lltRecord.LltName,
+                            Code = lltRecord.LltCode.ToString(),
+                            IsPrimaryPath = false,
+                            PathId = pathId
+                        });
+                    }
+                }
             }
 
             pathId++;

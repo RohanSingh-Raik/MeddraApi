@@ -7,8 +7,9 @@ var meddraService = new MeddraApi(filePath,lltFilePath);
 var data = meddraService._meddraRecords;
 var data1 = meddraService._lltRecords;
 
-var result = meddraService.GetHierarchyByTerm("Anaemia folate deficiency", "PT");
+var result = meddraService.GetHierarchyByTerm("Pacemaker generated arrhythmia", "PT");
 var result1 = meddraService.GetHierarchyByTerm("Haematological and lymphoid tissue therapeutic procedures", "HLGT");
+var result2 = meddraService.GetHierarchyByTerm("Fever neonatal", "LLT");
 
 var lltHeartResults = meddraService.SearchTerm("heart", "LLT");
 
